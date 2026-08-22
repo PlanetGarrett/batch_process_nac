@@ -1,0 +1,11 @@
+.vscode
+.src/__pycache__
+
+export/*
+!export/.gitkeep
+
+temp/*
+!temp/.gitkeep
+
+search_areas/*
+!search_areas/.gitkeep

@@ -1,0 +1,58 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [60.1, -23.79],
+            [59.97, -23.79],
+            [60, -22.64],
+            [60.14, -22.65],
+            [60.1, -23.79]
+          ]
+        ]
+      },
+      "properties": {
+        "Image": "M192559876LC",
+        "Orbit": 13406,
+        "Incidence": 69.16,
+        "Emission": 1.71,
+        "Phase": 70.84,
+        "Slew": -0.01,
+        "SubSol Lat": 0.06,
+        "SubSol Lon": 127.25,
+        "Sun Azi": 192,
+        "Resolution": 0.75,
+        "Url": "https://data.lroc.im-ldi.com/lroc/view_lroc/LRO-L-LROC-3-CDR-V1.0/M192559876LC",
+        "Start Time": "2012-05-25 04:36:49.364+00",
+        "label": "M192559876LC"
+      }
+    }
+  ],
+  "meta": {
+    "filters": [],
+    "searchFeature": {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [60.115877, -23.428057],
+            [60.184179, -23.379457],
+            [60.231005, -23.404461],
+            [60.227836, -23.458697],
+            [60.198262, -23.492859],
+            [60.130312, -23.481941],
+            [60.115877, -23.428057]
+          ]
+        ]
+      },
+      "properties": {},
+      "id": "tFCTe"
+    },
+    "productName": "cognac16"
+  }
+}
