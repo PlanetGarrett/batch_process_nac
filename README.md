@@ -6,7 +6,7 @@ dem-corrected images for use in GIS applications.
 ## Installation
 
 ```bash
-git clone
+git clone https://github.com/PlanetGarrett/batch_process_nac.git
 ```
 
 ## Requirements
