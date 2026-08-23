@@ -1,7 +1,7 @@
 # Bath Process NAC
 
-A simple Python package for batch processing LRO NAC images into projected,
-dem-corrected images for use in GIS applications.
+A simple set of Python and shell tools for batch processing LRO NAC images into
+projected, dem-corrected images for use in GIS applications.
 
 ## Installation
 
@@ -21,11 +21,11 @@ git clone https://github.com/PlanetGarrett/batch_process_nac.git
 
 ## Usage
 
-This package is not set to run from command line due to the user-specific
-file paths required. Could be refactored to use external directories, etc. but
-beyond current scope.
+This repository is not set to run from command line due to the user-specific
+file paths required. Could be refactored to ask user for configuration, but
+currently beyond scope.
 
-### I. Verify USGS ISIS functioning
+### I. Verify USGS ISIS functioning for NAC images
 
 Verify ISIS is installed and working, you can test an individually downloaded
 NAC such as the one below.
@@ -39,7 +39,7 @@ https://isis.astrogeology.usgs.gov/7.0.0/UserStart/index.html
 https://github.com/DOI-USGS/ISIS3#installation
 
 Make sure the conda environment can be activated via "isis" or change line 26
-to use the name of yours (e.g. isis10.0.0 for example).
+of the process_nac.sh to use the name of yours (e.g. isis10.0.0 for example).
 
 ### II. Get geojson list of NAC images from LROC Quickmap
 
@@ -47,7 +47,7 @@ Go to https://quickmap.lroc.im-ldi.com and select an area using the built in
 feature tools. On the right side, click on products and then select NAC. You
 should see a list of NAC images available for your selected feature location.
 Use the button at the bottom to export the list
-as a geojson file. Rename the downloaded file if needed and place in the
+as a geojson file. Rename the downloaded file if desired and place in the
 "search_areas" subdirectory here.
 
 ### III. Set constants in nac.py
@@ -79,14 +79,32 @@ Processing and downloading time will vary based on your system resources.
 Check the logs to see average times and any errors. You can use the included
 single_test.geojson in the tests directory to make sure it works correctly.
 
+Any processes that timeout or otherwise fail will be added to the "\_processed"
+.json log under fails. You can try to run the area again (it will check for any
+.tifs/.cubs that are already processed in the export folder and skip those) or
+you may need to process them manually. In most cases however, it appears to be
+caused by images with high slew angles (oblique views of the surface) which may
+require a different processing method.
+
+### V. Move images from export folder
+
+Since the script checks for images that are already processed, it may be helpful
+to keep the images in the export folder until you are completely done with all
+areas. Processing multiple areas near one another are likely to result in some
+duplicate images so this will help cut down on unnecessary processing time. Once
+you are done, move the images to where you need them.
+
 ## Acknowledgements
 
 This package is only possible because of the thorough instructions from Robert
-Wagner and the LROC team. A copy of the pdf is included in this repository. Read
-the guide via the link below for more information on processing NAC images:
+Wagner and the LROC team. Read the guide via the link below for more information on processing NAC images:
 
 Wagner, R., & LROC Team. (2026). Lunar Reconnaissance Orbiter Narrow Angle Camera Processing Guide (Version 1.1.4) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20058490
 
 ## License
 
 MIT
+
+## Additional Notes
+
+May extend this project to function for other instruments / missions.

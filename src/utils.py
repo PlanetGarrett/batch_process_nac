@@ -1,30 +1,30 @@
-import os
 import shutil
+from pathlib import Path
 
 """
 Generic utility functions for file and directory management.
 """
 
-def clear_directory(folder: str):
+def clear_directory(folder: str | Path):
     """
     Clears all files and subdirectories in the specified folder.
 
     Args:
         folder (Path): Path to the folder to clear.
     """
-    for filename in os.listdir(folder):
-        if filename == ".gitkeep":
+    folder = Path(folder)
+    for file_path in folder.iterdir():
+        if file_path.name == ".gitkeep":
             continue
-        file_path = os.path.join(folder, filename)
         try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
+            if file_path.is_file() or file_path.is_symlink():
+                file_path.unlink()
+            elif file_path.is_dir():
                 shutil.rmtree(file_path)
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
 
-def ask_which_file(dir_path: str, file_ext: str, message: str) -> str:
+def ask_which_file(dir_path: str | Path, file_ext: str, message: str) -> str:
     """
     Asks user to select file in given directory
 
@@ -36,7 +36,10 @@ def ask_which_file(dir_path: str, file_ext: str, message: str) -> str:
         str: The name of the selected file.
     """
     # List all available files in directory
-    file_list = [f for f in os.listdir(dir_path) if file_ext in f]
+    file_list = [file_path.name for file_path in Path(dir_path).iterdir()
+                 if file_ext in file_path.name]
+    if not file_list:
+        raise FileNotFoundError(f"No files with extension '{file_ext}' found in directory '{dir_path}'.")
     for a, e in enumerate(file_list):
         print(str(a) + '. ' + e)
 

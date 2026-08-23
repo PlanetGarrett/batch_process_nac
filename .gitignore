@@ -1,6 +1,8 @@
 .vscode
 .src/__pycache__
 
+.venv/*
+
 export/*
 !export/.gitkeep
 
@@ -9,3 +11,5 @@ temp/*
 
 search_areas/*
 !search_areas/.gitkeep
+
+src/__pycache__/*

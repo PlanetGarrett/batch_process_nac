@@ -1,6 +1,6 @@
-import os
 import subprocess
 import sys
+from pathlib import Path
 
 """
 Produces 60 meter scale dem of lunar globe in +-60degrees from the SLDEM2015
@@ -29,15 +29,16 @@ be approximately 226.5 gb total, please make sure your drive has enough room or
 modify this script to delete files as they are processed.
 """
 
-SLDEM_FILES = '/home/user/Downloads/sldem_files'
+SLDEM_FILES = Path('/home/user/Downloads/sldem_files')
 
-def get_lbl_img_pairs(dir_name: str) -> tuple:
+def get_lbl_img_pairs(dir_name: str | Path) -> tuple:
     # Get lbl and img file pairs
-    file_list = [f for f in os.listdir(dir_name) if '.LBL' in f or '.IMG' in f]
+    file_list = [file_path.name for file_path in Path(dir_name).iterdir()
+                 if '.LBL' in file_path.name or '.IMG' in file_path.name]
     pairs = {}
     missing = []
     for f in file_list:
-        fname, fext = os.path.splitext(f)
+        fname = Path(f).stem
         lbl = file_list[file_list.index(fname + '.LBL')]
         img = file_list[file_list.index(fname + '.IMG')]
         cub = fname.replace('_FLOAT', '') + '.cub'
@@ -56,7 +57,7 @@ def get_lbl_img_pairs(dir_name: str) -> tuple:
     return pairs, missing
 
 def sldem_to_cub(lbl_file, cub_file):
-    if os.path.exists(os.path.join(SLDEM_FILES, cub_file)):
+    if (SLDEM_FILES / cub_file).exists():
         print(f'{cub_file} already created')
         return
     bash_command = [
@@ -82,8 +83,9 @@ def preprocess_sldems():
         sys.exit()
 
 def write_list_of_cubs():
-    with open(os.path.join(SLDEM_FILES, 'sldem.lis'), 'w') as f:
-        f.writelines([x + '\n' for x in os.listdir(SLDEM_FILES) if x.endswith('.cub')])
+    with open(SLDEM_FILES / 'sldem.lis', 'w') as f:
+        f.writelines([file_path.name + '\n' for file_path in SLDEM_FILES.iterdir()
+                      if file_path.name.endswith('.cub')])
 
 def mosaic_sldems():
     bash_command = [

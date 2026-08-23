@@ -2,31 +2,50 @@ import json
 import subprocess
 import requests
 from bs4 import BeautifulSoup
-import os
 import urllib.request
 import time
 import shutil
 import src.utils
+from pathlib import Path
+from tqdm import trange
 
 """
-Functions for downloading and processing LROC NAC images listed in Quickmap geojson files.
+Functions for downloading and processing LRO NAC images listed in Quickmap geojson files.
 
 If you want to use a user-provided DEM for processing, set USER_DEM to 'true'.
 Set DEM_PATH to the path of the DEM to use for processing.
-If you want to perform photometric correction, set PERFORM_PHOTOMET to 'true'.
+
+If you want to perform photometric correction, set PERFORM_PHOTOMET to 'true'. 
+This option is generally not recommended due to processing times and relatively 
+small benefits.
+
 If you want to convert the output to .tif format, set CONVERT_TO_TIF to 'true'.
+This produces 32-bit float .tif files that are smaller than the .cub files and
+are generally more compatible with other software. 8 or 16-bit .tif files can be
+produced by changing the output type in gdal_translate in process_nac.sh script
+at line 84.
+
+Default export and search area folders are set to use relative paths within this
+repository. Git ignores all files in these directories except the .gitkeep files
+to prevent accidental commit of image files. Change these variables if you want
+to use different folders.
+
+Timeouts are set to 360 seconds (6 minutes) for processing each NAC image. If
+you have a slow computer or are processing large images like mosaics, you may
+want to increase this.
 """
 
 USER_DEM = 'true'
-DEM_PATH = "/home/scorn/Documents/LunarDEMs/SLDEM.demprep.cub"
+DEM_PATH = Path.cwd().parent / "LunarDEMs" / "SLDEM.demprep.cub"
 PERFORM_PHOTOMET = 'false'
 CONVERT_TO_TIF = 'true'
-EXPORT_FOLDER  = "/home/scorn/Documents/Nacs"
-AREA_FOLDER = "/home/scorn/Documents/SearchAreas"
+EXPORT_FOLDER = Path("export")
+AREA_FOLDER = Path("search_areas")
+TIMEOUT = 360 # seconds
 
 
 def parse_quickmap_geojson(
-        geojson_file: str,
+    geojson_file: str | Path,
         inc_range: list | None = None,
         res_range: list | None = None,
         ) -> tuple:
@@ -51,7 +70,7 @@ def parse_quickmap_geojson(
 
         # Parse geojson file
         data = json.load(quickmap_list)
-        print(len(data['features']))
+        print(f"Number of features listed: {len(data['features'])}")
         for i in data['features']:
             img_name = i['properties']['Image']
 
@@ -137,20 +156,20 @@ def download_edr_via_requests(nac_name: str, nac_url: str) -> str:
     """
     ## Set export
     #export_name = nac_name + '.IMG'
-    #export_path = os.path.join("temp", export_name)
+    #export_path = Path("temp") / export_name
     ## Set fail log
     #export_fail_file = nac_name + '_fail.log'
-    #export_fail_path = os.path.join("temp", export_fail_file)
+    #export_fail_path = Path("temp") / export_fail_file
     ## Get image from url
     #img_data = requests.get(nac_url)
     #if img_data.status_code == 200:
-    #    with open(os.path.join("temp", export_name), 'wb') as f:
+    #    with open(Path("temp") / export_name, 'wb') as f:
     #        f.write(img_data.content)
     #        print(f"NAC saved in temp folder as {export_name}")
     #        return export_path
     #else:
     #    print(f"get edr unsuccessful: {img_data.status_code}")
-    #    with open(os.path.join("temp", export_fail_file), 'wb') as f:
+    #    with open(Path("temp") / export_fail_file, 'wb') as f:
     #                f.write(img_data.content)
     #                print(img_data.url)
     #                print(f"Fail log saved in temp folder as {export_fail_file}")
@@ -170,8 +189,8 @@ def download_edr_via_urllib(nac_name: str, nac_url: str) -> float:
 
     # Save image from url
     export_name = nac_name + '.IMG'
-    export_path = os.path.join("temp", export_name)
-    if not os.path.exists(export_path):
+    export_path = Path("temp") / export_name
+    if not export_path.exists():
         urllib.request.urlretrieve(nac_url, export_path)
     else:
         print("EDR file already present")
@@ -181,33 +200,23 @@ def download_edr_via_urllib(nac_name: str, nac_url: str) -> float:
     download_time = end - start
     return download_time
 
-def process_nac(nac_meta: dict) -> tuple:
+def process_nac(nac_meta: dict, export_name: str) -> float:
     """
     Uses conda ISIS environment to run bash script to process NAC EDR into .cub
 
     Args:
         nac_meta (dict): Dictionary containing metadata and links for the NAC image.
+        export_name (str): Name of the file to save the processed NAC image as.
     Returns:
         tuple: A tuple containing the export name of the processed NAC image and the processing time in seconds.
     """
     # Track processing time
     start = time.time()
 
-    # Use USGS ISIS to process NAC into usable format
-    if CONVERT_TO_TIF:
-        export_name = nac_meta['Product'].replace('E', '.tif')
-    else:
-        export_name = nac_meta['Product'].replace('E', '.cub')
-
-    # Check if file already exists in export folder
-    if os.path.exists(os.path.join(EXPORT_FOLDER, export_name)):
-        print(f"{export_name} already exists in export folder, skipping...")
-        return export_name, 0.0
-
     # Set variables for bash script
     edr_file = nac_meta['Product']
     patch_size = str(round(100 / float(nac_meta['Resolution'])))
-    temp_dir = os.path.join(os.getcwd(), "temp")
+    temp_dir = Path.cwd() / "temp"
     bash_command = [
         'bash',
         'src/process_nac.sh',
@@ -224,21 +233,36 @@ def process_nac(nac_meta: dict) -> tuple:
         DEM_PATH                        # $11 dem path
     ]
 
-    # Start the process with a pipe for standard output
-    with subprocess.Popen(bash_command, stdout=subprocess.PIPE, text=True) as process:
-        # Read and print line-by-line as it streams
-        for line in process.stdout:
-            print(line, end='')  # end='' prevents double line break
+    # Start process
+    try:
+        subprocess.run(bash_command,
+                       check=True,
+                       capture_output=True,
+                       text=True,
+                       timeout=TIMEOUT)
+    except subprocess.TimeoutExpired as e:
+        raise TimeoutError(f"Processing timed out for {nac_meta['Product']}. "
+                           "Try processing manually.")
+
+    ## Pipe for debugging
+    #with subprocess.Popen(bash_command, stdout=subprocess.PIPE, text=True) as process:
+    #    # Read and print line-by-line as it streams
+    #    for line in process.stdout:
+    #        print(line, end='')  # end='' prevents double line break
 
     # Move final image from temp to export
-    shutil.move(os.path.join("temp", export_name), os.path.join(EXPORT_FOLDER, export_name))
-    src.utils.clear_directory("temp")
+    temp_path = Path("temp") / export_name
+    if temp_path.exists():
+        shutil.move(temp_path, EXPORT_FOLDER / export_name)
+        src.utils.clear_directory("temp")
+    else:
+        raise FileNotFoundError(f"Processed file {export_name} not found in temp folder")
 
     # Check processing time
     end = time.time()
     process_time = end - start
 
-    return export_name, process_time
+    return process_time
 
 def process_search_area() -> None:
     """
@@ -250,12 +274,12 @@ def process_search_area() -> None:
 
     # Ask which geojson to process
     area_file = src.utils.ask_which_file(AREA_FOLDER, '.geojson', "Select which Quickmap geojson to process")
-    area_path = os.path.join(AREA_FOLDER, area_file)
+    area_path = AREA_FOLDER / area_file
     area = area_file.replace('.geojson', '')
 
     # Set log names
-    processed_log = os.path.join("logs", area + '_processed.json')
-    missing_log = os.path.join("logs", area + '_missing.log')
+    processed_log = Path("logs") / (area + '_processed.json')
+    missing_log = Path("logs") / (area + '_missing.log')
     
     # Parse geojson for nac names and urls
     names, links, missing = parse_quickmap_geojson(area_path)
@@ -275,10 +299,24 @@ def process_search_area() -> None:
     # Get metadata, download, and process
     performance = {} # Log performance for each nac
     fails = []
-    for i, nac in enumerate(names):
+    for i in trange(len(names), desc="Processing NAC images", unit="image", leave=True):
 
         # Get download link and metadata from LROC website
         nac_meta = get_nac_meta(names[i], links[i])
+
+        # Use USGS ISIS to process NAC into usable format
+        export_name = ''
+        if CONVERT_TO_TIF:
+            export_name = nac_meta['Product'].replace('E', '.tif')
+        else:
+            export_name = nac_meta['Product'].replace('E', '.cub')
+    
+        # Check if file already exists in export folder
+        if (EXPORT_FOLDER / export_name).exists():
+            with open(processed_log, 'a') as log:
+                log.write(f"{export_name} already exists in export folder, skipping...\n")
+            print(f"{export_name} already exists in export folder, skipping...")
+            continue
 
         # Download EDR
         print(f'Downloading EDR for {names[i]}')
@@ -295,7 +333,7 @@ def process_search_area() -> None:
         # Process EDR
         print(f'Processing {nac_meta["Product"]}')
         try:
-            export_name, process_time = process_nac(nac_meta)
+            process_time = process_nac(nac_meta, export_name)
             print(f"NAC processed, {export_name} available in export folder.")
             print(f"Processing time: {process_time} seconds")
         except Exception as e:
@@ -306,7 +344,12 @@ def process_search_area() -> None:
 
         # Append to temporary log in case process is interrupted
         with open(processed_log, 'a') as log:
-            log.write(f"{names[i]}: {export_name}, download time: {download_time}, process time: {process_time}\n")
+            log.write(f"{names[i]}: {export_name},"
+                      f"download time: {download_time},"
+                      f"process time: {process_time}\n")
+            log.write(f"Fails: {fails}\n")
+
+        
         performance[names[i]] = {'download_time': download_time,
                                    'process_time': process_time}
 
@@ -316,22 +359,28 @@ def process_search_area() -> None:
     for x in performance:
         download_times.append(performance[x]['download_time'])
         process_times.append(performance[x]['process_time'])
-    total_dl_time = sum(download_times)
-    total_pr_time = sum(process_times)
-    total_time = total_dl_time + total_pr_time
-    avg_dl_time = total_dl_time / len(download_times)
-    avg_pr_time = total_pr_time / len(process_times)
 
-    performance['all together'] = {
-        'total_dl_time': total_dl_time,
-        'total_pr_time': total_pr_time,
-        'total_time': total_time,
-        'avg_dl_time': avg_dl_time,
-        'avg_pr_time': avg_pr_time,
-        'fails': fails
-    }
+    # Make sure there are valid download and process times before calculating totals and averages
+    if download_times and process_times:
+        # Calculate total and average times
+        total_dl_time = sum(download_times)
+        total_pr_time = sum(process_times)
+        total_time = total_dl_time + total_pr_time
+        avg_dl_time = total_dl_time / len(download_times)
+        avg_pr_time = total_pr_time / len(process_times)
 
-    with open(processed_log, 'w') as log:
-        log.write(json.dumps(performance, indent=4))
+        # Add to performance dict
+        performance['all together'] = {
+            'total_dl_time': total_dl_time,
+            'total_pr_time': total_pr_time,
+            'total_time': total_time,
+            'avg_dl_time': avg_dl_time,
+            'avg_pr_time': avg_pr_time,
+            'fails': fails
+        }
+
+        # Write performance to log file in JSON format
+        with open(processed_log, 'w') as log:
+            log.write(json.dumps(performance, indent=4))
 
     return
