@@ -12,4 +12,7 @@ temp/*
 search_areas/*
 !search_areas/.gitkeep
 
+logs/*
+!logs/.gitkeep
+
 src/__pycache__/*
